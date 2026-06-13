@@ -6,8 +6,6 @@ Most PDF viewers show one or two pages at a time. PagesPerRow lets you set how m
 
 It's a **single HTML file**. No install, no build, no server, no account. Open it, drag a PDF in, done. Your file never leaves your machine — everything runs locally in the browser.
 
-![screenshot placeholder](docs/screenshot.png)
-
 ## Why this exists
 
 If you read academic papers as PDFs, you've probably wanted to scan the overall structure — where the figures are, how long each section runs, where the references start — without committing to a linear page-by-page crawl. Existing tools don't really give you that:
