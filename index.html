@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF N-View</title>
+<style>
+  :root { --gap: 8px; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #333;
+    color: #ddd;
+    font: 14px/1.4 -apple-system, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Toolbar ---------- */
+  #toolbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 8px 16px;
+    background: #222;
+    border-bottom: 1px solid #111;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-wrap: wrap;
+  }
+  #fileName {
+    font-weight: 600;
+    max-width: 28ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #fff;
+  }
+  #toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  #toolbar input[type="range"] { accent-color: #5a9; }
+  #colsVal, #zoomVal {
+    display: inline-block;
+    min-width: 4ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  #fitBtn {
+    background: #444;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px 10px;
+    cursor: pointer;
+    font: inherit;
+  }
+  #fitBtn:hover { background: #555; }
+  #fitBtn.active { background: #5a9; color: #112; border-color: #5a9; }
+  #pageCount { margin-left: auto; color: #aaa; }
+
+  /* ---------- Viewer / Grid ---------- */
+  #viewer {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+  #dropHint[hidden] { display: none; }
+  #dropHint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #888;
+    font-size: 20px;
+    cursor: pointer;
+    user-select: none;
+    padding: 24px;
+  }
+  body.dragging #viewer { outline: 3px dashed #5a9; outline-offset: -3px; }
+  body.dragging #dropHint { color: #5a9; }
+
+  #grid {
+    display: grid;
+    gap: var(--gap);
+    justify-content: center;
+    align-items: start;
+    padding: 16px;
+    width: max-content;
+    min-width: 100%;
+  }
+  .page { cursor: zoom-in; }
+  .page canvas {
+    display: block;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  }
+  .page .label {
+    text-align: center;
+    color: #aaa;
+    font-size: 12px;
+    padding: 4px 0 2px;
+    user-select: none;
+  }
+
+  /* ---------- Modal ---------- */
+  #modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    z-index: 100;
+    cursor: zoom-out;
+  }
+  #modal[hidden] { display: none; }
+  #modalCanvas {
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .8);
+    cursor: default;
+    max-width: 94vw;
+    max-height: 88vh;
+  }
+  #modalLabel { color: #ccc; user-select: none; }
+</style>
+</head>
+<body>
+
+<header id="toolbar">
+  <span id="fileName" title="">未載入檔案</span>
+  <label>每行
+    <input type="range" id="colsSlider" min="1" max="8" value="4">
+    <span id="colsVal">4</span> 頁
+  </label>
+  <label>縮放
+    <input type="range" id="zoomSlider" min="50" max="200" value="100">
+    <span id="zoomVal">--</span>
+  </label>
+  <button id="fitBtn" class="active" title="自動符合格寬">Fit</button>
+  <span id="pageCount"></span>
+</header>
+
+<main id="viewer">
+  <div id="dropHint">拖曳 PDF 到這裡，或點擊選擇檔案</div>
+  <div id="grid" hidden></div>
+</main>
+
+<div id="modal" hidden>
+  <canvas id="modalCanvas"></canvas>
+  <div id="modalLabel"></div>
+</div>
+
+<input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+
+const $ = id => document.getElementById(id);
+const fileName = $('fileName'), pageCount = $('pageCount'),
+      colsSlider = $('colsSlider'), colsVal = $('colsVal'),
+      zoomSlider = $('zoomSlider'), zoomVal = $('zoomVal'), fitBtn = $('fitBtn'),
+      viewer = $('viewer'), dropHint = $('dropHint'), grid = $('grid'),
+      modal = $('modal'), modalCanvas = $('modalCanvas'), modalLabel = $('modalLabel'),
+      fileInput = $('fileInput');
+
+const GAP = 8, GRID_PAD = 16;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+let pdfDoc = null;
+let baseWidth = 0;            // 第 1 頁在 scale=1 時的寬度，作為 fit 計算基準
+let cols = 4;
+let zoom = 100;               // 百分比
+let fitMode = true;           // 預設 fit-to-grid
+let renderGen = 0;            // 世代記號：換檔 / 換縮放時讓舊的 render 迴圈自行停止
+let activeTasks = new Set();  // 進行中的 pdf.js render task，可取消
+let modalPage = 0;
+let modalGen = 0;
+
+// ---------- 檔案載入 ----------
+async function loadFile(file) {
+  if (!file) return;
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+    alert('請選擇 PDF 檔案');
+    return;
+  }
+  dropHint.textContent = '載入中…';
+  try {
+    const data = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data }).promise;
+    if (pdfDoc) pdfDoc.destroy();
+    pdfDoc = doc;
+    fileName.textContent = file.name;
+    fileName.title = file.name;
+    pageCount.textContent = `共 ${doc.numPages} 頁`;
+    const page1 = await doc.getPage(1);
+    baseWidth = page1.getViewport({ scale: 1 }).width;
+    buildGrid();
+    dropHint.hidden = true;
+    grid.hidden = false;
+    fitMode = true;
+    applyFit();
+    renderAll();
+  } catch (err) {
+    dropHint.textContent = `載入失敗：${err.message}（拖曳或點擊重試）`;
+    console.error(err);
+  }
+}
+
+function buildGrid() {
+  grid.replaceChildren();
+  grid.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'page';
+    const canvas = document.createElement('canvas');
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = i;
+    cell.append(canvas, label);
+    cell.addEventListener('click', () => openModal(i));
+    grid.appendChild(cell);
+  }
+}
+
+// ---------- Render ----------
+function cancelActive() {
+  for (const t of activeTasks) t.cancel();
+  activeTasks.clear();
+}
+
+async function renderAll() {
+  if (!pdfDoc) return;
+  const gen = ++renderGen;
+  cancelActive();
+  const scale = zoom / 100;
+  const dpr = window.devicePixelRatio || 1;
+  const cells = grid.children;
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    if (gen !== renderGen) return;
+    const canvas = cells[i - 1].firstChild;
+    try {
+      const page = await pdfDoc.getPage(i);
+      if (gen !== renderGen) return;
+      const vp = page.getViewport({ scale: scale * dpr });
+      canvas.width = vp.width;
+      canvas.height = vp.height;
+      canvas.style.width = `${vp.width / dpr}px`;
+      canvas.style.height = `${vp.height / dpr}px`;
+      const task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+      activeTasks.add(task);
+      await task.promise.finally(() => activeTasks.delete(task));
+    } catch (err) {
+      if (err?.name !== 'RenderingCancelledException') console.error(`page ${i}:`, err);
+    }
+  }
+}
+
+const debounce = (fn, ms) => {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+};
+const renderAllDebounced = debounce(renderAll, 150);
+
+// ---------- Fit-to-grid ----------
+function fitZoom() {
+  const cellWidth = (viewer.clientWidth - GRID_PAD * 2 - GAP * (cols - 1)) / cols;
+  return clamp(Math.round(cellWidth / baseWidth * 100), 50, 200);
+}
+
+function applyFit() {
+  if (!pdfDoc || !fitMode) return;
+  zoom = fitZoom();
+  zoomSlider.value = zoom;
+  zoomVal.textContent = `${zoom}%`;
+  fitBtn.classList.add('active');
+}
+
+// ---------- Toolbar 事件 ----------
+colsSlider.addEventListener('input', () => {
+  cols = +colsSlider.value;
+  colsVal.textContent = cols;
+  grid.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+  if (fitMode) {
+    applyFit();
+    renderAllDebounced();
+  }
+});
+
+zoomSlider.addEventListener('input', () => {
+  zoom = +zoomSlider.value;
+  zoomVal.textContent = `${zoom}%`;
+  fitMode = false;
+  fitBtn.classList.remove('active');
+  renderAllDebounced();
+});
+
+fitBtn.addEventListener('click', () => {
+  fitMode = true;
+  applyFit();
+  renderAllDebounced();
+});
+
+window.addEventListener('resize', debounce(() => {
+  if (fitMode && pdfDoc) {
+    const prev = zoom;
+    applyFit();
+    if (zoom !== prev) renderAll();
+  }
+}, 200));
+
+// ---------- 檔案選取：點擊與拖曳 ----------
+dropHint.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  loadFile(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+let dragDepth = 0;
+window.addEventListener('dragenter', e => {
+  e.preventDefault();
+  dragDepth++;
+  document.body.classList.add('dragging');
+});
+window.addEventListener('dragleave', () => {
+  if (--dragDepth <= 0) {
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+  }
+});
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dragging');
+  loadFile(e.dataTransfer.files[0]);
+});
+
+// ---------- Modal 單頁放大 ----------
+async function openModal(n) {
+  modalPage = n;
+  modal.hidden = false;
+  renderModal();
+}
+
+async function renderModal() {
+  const gen = ++modalGen;
+  const n = modalPage;
+  modalLabel.textContent = `${n} / ${pdfDoc.numPages}`;
+  try {
+    const page = await pdfDoc.getPage(n);
+    if (gen !== modalGen || modal.hidden) return;
+    const base = page.getViewport({ scale: 1 });
+    const fit = Math.min(
+      window.innerWidth * 0.94 / base.width,
+      window.innerHeight * 0.88 / base.height
+    );
+    const dpr = window.devicePixelRatio || 1;
+    const vp = page.getViewport({ scale: fit * dpr });
+    modalCanvas.width = vp.width;
+    modalCanvas.height = vp.height;
+    modalCanvas.style.width = `${vp.width / dpr}px`;
+    modalCanvas.style.height = `${vp.height / dpr}px`;
+    await page.render({ canvasContext: modalCanvas.getContext('2d'), viewport: vp }).promise;
+  } catch (err) {
+    if (err?.name !== 'RenderingCancelledException') console.error(err);
+  }
+}
+
+function closeModal() {
+  modal.hidden = true;
+  modalGen++;
+}
+
+modal.addEventListener('click', e => {
+  if (e.target !== modalCanvas) closeModal();
+});
+
+window.addEventListener('keydown', e => {
+  if (modal.hidden) return;
+  if (e.key === 'Escape') closeModal();
+  else if (e.key === 'ArrowLeft' && modalPage > 1) { modalPage--; renderModal(); }
+  else if (e.key === 'ArrowRight' && modalPage < pdfDoc.numPages) { modalPage++; renderModal(); }
+});
+</script>
+</body>
+</html>
