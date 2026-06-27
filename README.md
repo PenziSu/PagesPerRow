@@ -1,5 +1,7 @@
 # PagesPerRow
 
+**English** | [繁體中文](README.zh-TW.md)
+
 A PDF reader built around one idea: see many pages at once, in a single row.
 
 Most PDF viewers show one or two pages at a time. PagesPerRow lets you set how many pages sit side-by-side on each row — 4, 6, 8, whatever your screen fits — so you can take in a whole paper at a glance instead of scrolling page by page. It's a bird's-eye reading mode for people who think about a document spatially before they read it linearly.
