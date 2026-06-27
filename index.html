@@ -209,7 +209,7 @@
     <span id="colsVal">4</span> 頁
   </label>
   <label>縮放
-    <input type="range" id="zoomSlider" min="50" max="200" value="100">
+    <input type="range" id="zoomSlider" min="10" max="200" value="100">
     <span id="zoomVal">--</span>
   </label>
   <button id="fitBtn" class="active" title="自動符合格寬">Fit</button>
@@ -367,7 +367,7 @@ const renderAllDebounced = debounce(renderAll, 150);
 // ---------- Fit-to-grid ----------
 function fitZoom() {
   const cellWidth = (viewer.clientWidth - GRID_PAD * 2 - GAP * (cols - 1)) / cols;
-  return clamp(Math.round(cellWidth / baseWidth * 100), 50, 200);
+  return clamp(Math.round(cellWidth / baseWidth * 100), 10, 200);
 }
 
 function applyFit() {

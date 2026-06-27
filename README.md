@@ -19,7 +19,7 @@ PagesPerRow fills that specific gap: a configurable number of pages per row, opt
 ## Features
 
 - **Configurable pages per row** — a slider from 1 to 8 (default 4); the grid reflows instantly to fit.
-- **Independent zoom** — a 50%–200% zoom slider, or **fit-to-grid** mode that auto-sizes pages to the current column count. Switch back to auto anytime with the **Fit** button.
+- **Independent zoom** — a 10%–200% zoom slider, or **fit-to-grid** mode that auto-sizes pages to the current column count. Switch back to auto anytime with the **Fit** button.
 - **Single-page modal** — click any page to blow it up full-screen for detail. Arrow keys (←/→) flip pages within the modal; click outside or press **Esc** to close.
 - **Full-text search** — find any text across the whole document. Matching pages get a count badge, every hit is highlighted on the page (in both the grid and the enlarged view), and you can jump between matches from the toolbar.
 - **Sharp on Retina** — pages render at device pixel ratio, so text stays crisp when you zoom in.
@@ -45,7 +45,7 @@ Either way you need an internet connection the first time, since PDF.js loads fr
 |---|---|
 | Load a PDF | Drag the file onto the window, or click the drop area to browse |
 | Pages per row | **Pages-per-row slider** (1–8) in the toolbar |
-| Zoom | **Zoom slider** (50%–200%), or the **Fit** button for auto-sizing |
+| Zoom | **Zoom slider** (10%–200%), or the **Fit** button for auto-sizing |
 | Enlarge one page | Click the page |
 | Flip pages (in modal) | **←** / **→** |
 | Close the enlarged page | **Esc**, or click outside it |
