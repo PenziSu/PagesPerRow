@@ -183,13 +183,31 @@
     cursor: zoom-out;
   }
   #modal[hidden] { display: none; }
-  #modalCanvas {
-    background: #fff;
+  #modalDoc {
+    position: relative;        /* 定位基準：文字層疊在 canvas 上 */
+    line-height: 0;
     box-shadow: 0 4px 24px rgba(0, 0, 0, .8);
-    cursor: default;
-    max-width: 94vw;
-    max-height: 88vh;
   }
+  #modalCanvas { display: block; background: #fff; }
+  /* PDF.js 文字層：透明可選取的文字，精準對齊 canvas */
+  .textLayer {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    line-height: 1;
+    text-align: initial;
+    transform-origin: 0 0;
+    forced-color-adjust: none;
+    z-index: 1;
+  }
+  .textLayer span {
+    position: absolute;
+    color: transparent;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0 0;
+  }
+  .textLayer ::selection { background: rgba(80, 160, 255, .4); }
   #modalLabel { color: #ccc; user-select: none; }
 </style>
 </head>
@@ -233,7 +251,10 @@
 </main>
 
 <div id="modal" hidden>
-  <canvas id="modalCanvas"></canvas>
+  <div id="modalDoc">
+    <canvas id="modalCanvas"></canvas>
+    <div id="modalText" class="textLayer"></div>
+  </div>
   <div id="modalLabel"></div>
 </div>
 
@@ -250,6 +271,7 @@ const fileName = $('fileName'), pageCount = $('pageCount'),
       zoomSlider = $('zoomSlider'), zoomVal = $('zoomVal'), fitBtn = $('fitBtn'),
       viewer = $('viewer'), dropHint = $('dropHint'), grid = $('grid'), openBtn = $('openBtn'),
       modal = $('modal'), modalCanvas = $('modalCanvas'), modalLabel = $('modalLabel'),
+      modalText = $('modalText'),
       fileInput = $('fileInput'),
       searchInput = $('searchInput'), searchStatus = $('searchStatus'),
       searchPrev = $('searchPrev'), searchNext = $('searchNext');
@@ -635,10 +657,17 @@ async function renderModalInner(seq) {
     modalCanvas.style.width = `${vp.width / dpr}px`;
     modalCanvas.style.height = `${vp.height / dpr}px`;
     await page.render({ canvasContext: modalCanvas.getContext('2d'), viewport: vp }).promise;
-    if (searchQuery) {
-      const tc = await getText(n);
-      if (seq === modalSeq && !modal.hidden) drawHighlights(modalCanvas.getContext('2d'), tc, vp);
-    }
+    const tc = await getText(n);
+    if (seq !== modalSeq || modal.hidden) return;
+    if (searchQuery) drawHighlights(modalCanvas.getContext('2d'), tc, vp);
+    // 疊上可選取的透明文字層（CSS 尺寸 = canvas 邏輯尺寸，scale 不含 dpr）
+    modalText.replaceChildren();
+    modalText.style.setProperty('--scale-factor', fit);
+    await pdfjsLib.renderTextLayer({
+      textContentSource: tc,
+      container: modalText,
+      viewport: page.getViewport({ scale: fit }),
+    }).promise;
   } catch (err) {
     if (err?.name !== 'RenderingCancelledException') console.error(err);
   }
@@ -650,7 +679,7 @@ function closeModal() {
 }
 
 modal.addEventListener('click', e => {
-  if (e.target !== modalCanvas) closeModal();
+  if (e.target === modal) closeModal();   // 只在點背景時關閉，讓頁面上的文字可被選取
 });
 
 window.addEventListener('keydown', e => {
