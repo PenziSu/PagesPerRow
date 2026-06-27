@@ -62,6 +62,22 @@
   }
   #fitBtn:hover { background: #555; }
   #fitBtn.active { background: #5a9; color: #112; border-color: #5a9; }
+  #openBtn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: #444;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #openBtn:hover { background: #5a9; color: #112; border-color: #5a9; }
+  #openBtn svg { width: 18px; height: 18px; display: block; }
   #pageCount { margin-left: auto; color: #aaa; }
 
   /* ---------- Viewer / Grid ---------- */
@@ -137,6 +153,13 @@
 <body>
 
 <header id="toolbar">
+  <button id="openBtn" title="開啟檔案" aria-label="開啟檔案">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1H3V7Z"/>
+      <path d="M3 10h17.5a1 1 0 0 1 .97 1.243l-1.5 6A1 1 0 0 1 19 18H5a2 2 0 0 1-2-2v-6Z"/>
+    </svg>
+  </button>
   <span id="fileName" title="">未載入檔案</span>
   <label>每行
     <input type="range" id="colsSlider" min="1" max="8" value="4">
@@ -171,7 +194,7 @@ const $ = id => document.getElementById(id);
 const fileName = $('fileName'), pageCount = $('pageCount'),
       colsSlider = $('colsSlider'), colsVal = $('colsVal'),
       zoomSlider = $('zoomSlider'), zoomVal = $('zoomVal'), fitBtn = $('fitBtn'),
-      viewer = $('viewer'), dropHint = $('dropHint'), grid = $('grid'),
+      viewer = $('viewer'), dropHint = $('dropHint'), grid = $('grid'), openBtn = $('openBtn'),
       modal = $('modal'), modalCanvas = $('modalCanvas'), modalLabel = $('modalLabel'),
       fileInput = $('fileInput');
 
@@ -322,6 +345,7 @@ window.addEventListener('resize', debounce(() => {
 
 // ---------- 檔案選取：點擊與拖曳 ----------
 dropHint.addEventListener('click', () => fileInput.click());
+openBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   loadFile(fileInput.files[0]);
   fileInput.value = '';
