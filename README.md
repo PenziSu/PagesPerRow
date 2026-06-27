@@ -21,6 +21,7 @@ PagesPerRow fills that specific gap: a configurable number of pages per row, opt
 - **Configurable pages per row** — a slider from 1 to 8 (default 4); the grid reflows instantly to fit.
 - **Independent zoom** — a 50%–200% zoom slider, or **fit-to-grid** mode that auto-sizes pages to the current column count. Switch back to auto anytime with the **Fit** button.
 - **Single-page modal** — click any page to blow it up full-screen for detail. Arrow keys (←/→) flip pages within the modal; click outside or press **Esc** to close.
+- **Full-text search** — find any text across the whole document. Matching pages get a count badge, every hit is highlighted on the page (in both the grid and the enlarged view), and you can jump between matches from the toolbar.
 - **Sharp on Retina** — pages render at device pixel ratio, so text stays crisp when you zoom in.
 - **Local & private** — pure front-end, no upload, no backend. PDF.js is loaded from a CDN; your document is read entirely in-browser.
 
@@ -48,6 +49,8 @@ Either way you need an internet connection the first time, since PDF.js loads fr
 | Enlarge one page | Click the page |
 | Flip pages (in modal) | **←** / **→** |
 | Close the enlarged page | **Esc**, or click outside it |
+| Search text | Type in the search box, or **Cmd/Ctrl+F** to focus it |
+| Jump between matches | **Enter** / **Shift+Enter**, or the **‹ ›** buttons |
 
 The toolbar shows the file name, the current pages-per-row and zoom values, and the total page count.
 
@@ -59,7 +62,8 @@ Possible future directions (nothing promised):
 - Per-document layout memory (remember pages-per-row and zoom per file)
 - Lazy rendering for very large PDFs (only render pages in view)
 - Book mode (first page single, then paired spreads)
-- Annotation, highlight, and full-text search — deliberately out of scope for now; this is an overview/reading tool, not an editor.
+- Smarter search: match across line/word breaks, regex, whole-word
+- Annotation and highlight editing — deliberately out of scope for now; this is an overview/reading tool, not an editor.
 
 ## Tech
 
